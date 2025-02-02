@@ -1,65 +1,70 @@
-# 使用 Flask 创建 RESTful API
+import psycopg2
+import os
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-import json
 
 app = Flask(__name__)
-CORS(app)  # 允许跨域请求
 
-# 词汇数据的文件路径
-VOCAB_FILE = "vocabulary.json"
+# ✅ 通过环境变量获取 Render 提供的数据库 URL
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# 读取词汇数据
-def load_vocabulary():
-    try:
-        with open(VOCAB_FILE, "r", encoding='utf-8') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}
+# ✅ 连接数据库
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
 
-# 保存词汇数据
-def save_vocabulary(vocabulary):
-    with open(VOCAB_FILE, "w", encoding='utf-8') as file:
-        json.dump(vocabulary, file, ensure_ascii=False, indent=4)
+# ✅ 创建数据库表（只执行一次）
+def create_table():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS words (
+            id SERIAL PRIMARY KEY,
+            english TEXT NOT NULL,
+            portuguese TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    cur.close()
+    conn.close()
 
-# API 路由
-@app.route('/api/words', methods=['GET'])
-def get_words():
-    vocabulary = load_vocabulary()
-    return jsonify(vocabulary)
+# ✅ 主页路由，测试 API 是否在线
+@app.route("/")
+def home():
+    return "✅ API is running!"
 
-@app.route('/api/words', methods=['POST'])
+# ✅ 添加单词
+@app.route("/add_word", methods=["POST"])
 def add_word():
     data = request.json
-    vocabulary = load_vocabulary()
-    vocabulary[data['english']] = {
-        'portuguese': data['portuguese'],
-        'example': data['example']
-    }
-    save_vocabulary(vocabulary)
-    return jsonify({"message": "Word added successfully"})
+    english = data.get("english")
+    portuguese = data.get("portuguese")
 
-@app.route('/api/words/<english>', methods=['PUT'])
-def update_word(english):
-    data = request.json
-    vocabulary = load_vocabulary()
-    if english in vocabulary:
-        vocabulary[english] = {
-            'portuguese': data['portuguese'],
-            'example': data['example']
-        }
-        save_vocabulary(vocabulary)
-        return jsonify({"message": "Word updated successfully"})
-    return jsonify({"error": "Word not found"}), 404
+    if not english or not portuguese:
+        return jsonify({"error": "缺少参数"}), 400
 
-@app.route('/api/words/<english>', methods=['DELETE'])
-def delete_word(english):
-    vocabulary = load_vocabulary()
-    if english in vocabulary:
-        del vocabulary[english]
-        save_vocabulary(vocabulary)
-        return jsonify({"message": "Word deleted successfully"})
-    return jsonify({"error": "Word not found"}), 404
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO words (english, portuguese) VALUES (%s, %s)", (english, portuguese))
+    conn.commit()
+    cur.close()
+    conn.close()
 
-if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=10000)
+    return jsonify({"message": "单词已添加！"}), 201
+
+# ✅ 获取所有单词
+@app.route("/get_words", methods=["GET"])
+def get_words():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT english, portuguese FROM words")
+    words = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return jsonify(words)
+
+# ✅ 确保数据库表存在
+create_table()
+
+# ✅ 让 Flask 监听 0.0.0.0，确保 Render 可以访问
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
