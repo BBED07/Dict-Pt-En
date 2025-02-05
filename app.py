@@ -62,11 +62,12 @@ def add_word():
         english = data['english'].strip()
         portuguese = normalize_text(data['portuguese'].strip())
         example = normalize_text(data.get('example', '').strip())
+        created_at = datetime.utcnow()  # Get the current timestamp
         
         with conn.cursor() as cur:
             cur.execute(
-                'INSERT INTO words (english, portuguese, example) VALUES (%s, %s, %s) RETURNING id',
-                (english, portuguese, example)
+                'INSERT INTO words (english, portuguese, example, created_at) VALUES (%s, %s, %s, %s) RETURNING id',
+                (english, portuguese, example, created_at)
             )
             new_id = cur.fetchone()[0]
             conn.commit()
@@ -262,14 +263,15 @@ def update_word(id):
         english = data['english'].strip()
         portuguese = normalize_text(data['portuguese'].strip())
         example = normalize_text(data.get('example', '').strip())
-        
+        updated_at = datetime.utcnow()  # Get the current timestamp
+
         with conn.cursor() as cur:
             cur.execute('''
                 UPDATE words 
-                SET english = %s, portuguese = %s, example = %s 
+                SET english = %s, portuguese = %s, example = %s, updated_at = %s
                 WHERE id = %s
                 RETURNING id
-            ''', (english, portuguese, example, id))
+            ''', (english, portuguese, example, updated_at, id))
             
             if cur.rowcount == 0:
                 return jsonify({"error": "Word not found"}), 404
