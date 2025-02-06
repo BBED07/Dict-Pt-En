@@ -121,12 +121,49 @@ def get_random_quiz():
             quiz_data = [{
                 'id': word['id'],
                 'question': word['english'],  # 提供英语单词
-                'correct_answer': word['portuguese'],  # 返回正确的葡萄牙语答案
-                'example': word['example'],
             } for word in words]
             
             # 返回测验数据
             return jsonify(quiz_data)
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+# 提交答案并验证
+@app.route('/quiz/submit', methods=['POST'])
+def submit_quiz_answer():
+    try:
+        data = request.get_json()
+        word_id = data['id']
+        user_answer = data['answer'].strip().lower()  # 用户输入的答案
+        conn = get_db_connection()
+        
+        if not conn:
+            return jsonify({"error": "Database connection failed"}), 500
+        
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            # 查找正确答案
+            cur.execute('''
+                SELECT portuguese FROM words 
+                WHERE id = %s
+            ''', (word_id,))
+            
+            word = cur.fetchone()
+            
+            if not word:
+                return jsonify({"error": "Word not found"}), 404
+            
+            correct_answer = word['portuguese'].strip().lower()  # 正确答案
+            is_correct = user_answer == correct_answer
+            
+            # 返回验证结果
+            return jsonify({
+                "is_correct": is_correct,
+                "correct_answer": correct_answer,
+                "user_answer": user_answer,
+                "message": "Correct!" if is_correct else "Incorrect. Try again."
+            })
             
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -164,8 +201,6 @@ def get_range_quiz():
             quiz_data = [{
                 'id': word['id'],
                 'question': word['english'],  # 提供英语单词
-                'correct_answer': word['portuguese'],  # 返回正确的葡萄牙语答案
-                'example': word['example'],
             } for word in words]
             
     except Exception as e:
@@ -215,7 +250,6 @@ def update_word(id):
         english = data['english'].strip()
         portuguese = normalize_text(data['portuguese'].strip())
         example = normalize_text(data.get('example', '').strip())
-        tags = data.get('tags', [])
         updated_at = datetime.utcnow()
 
         with conn.cursor() as cur:
@@ -239,7 +273,6 @@ def update_word(id):
                 "english": english,
                 "portuguese": portuguese,
                 "example": example,
-                "tags": tags
             })
             
     except Exception as e:
@@ -248,6 +281,62 @@ def update_word(id):
     finally:
         conn.close()
 
+@app.route('/words/search', methods=['PUT'])
+def update_word_by_search():
+    data = request.get_json()
+    search_term = data.get('search_term', '').strip()
+
+    # 模糊搜索功能
+    search_results = search_words(search_term)
+
+    if not search_results:
+        return jsonify({"error": "No words found matching the search term"}), 404
+    
+    if len(search_results) > 1:
+        # 如果有多个匹配结果，让用户选择 ID
+        return jsonify({
+            "message": "Multiple results found. Please choose one by ID.",
+            "results": search_results
+        })
+
+    # 如果只有一个结果，直接更新
+    word_to_update = search_results[0]
+    word_id = word_to_update['id']
+    english = data['english'].strip()
+    portuguese = normalize_text(data['portuguese'].strip())
+    example = normalize_text(data.get('example', '').strip())
+    updated_at = datetime.utcnow()
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        with conn.cursor() as cur:
+            # 根据 ID 更新记录
+            cur.execute('''
+                UPDATE words
+                SET english = %s, portuguese = %s, example = %s, updated_at = %s
+                WHERE id = %s
+                RETURNING id
+            ''', (english, portuguese, example, updated_at, word_id))
+
+            if cur.rowcount == 0:
+                return jsonify({"error": "Word not found"}), 404
+
+            conn.commit()
+            return jsonify({
+                "message": "Word updated successfully",
+                "id": word_id,
+                "english": english,
+                "portuguese": portuguese,
+                "example": example,
+            })
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 # 删除单词
 @app.route('/words/<int:id>', methods=['DELETE'])
