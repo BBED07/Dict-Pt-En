@@ -130,46 +130,6 @@ def get_random_quiz():
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
-# 提交答案并验证
-@app.route('/quiz/submit', methods=['POST'])
-def submit_quiz_answer():
-    try:
-        data = request.get_json()
-        word_id = data['id']
-        user_answer = data['answer'].strip().lower()  # 用户输入的答案
-        conn = get_db_connection()
-        
-        if not conn:
-            return jsonify({"error": "Database connection failed"}), 500
-        
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            # 查找正确答案
-            cur.execute('''
-                SELECT portuguese FROM words 
-                WHERE id = %s
-            ''', (word_id,))
-            
-            word = cur.fetchone()
-            
-            if not word:
-                return jsonify({"error": "Word not found"}), 404
-            
-            correct_answer = word['portuguese'].strip().lower()  # 正确答案
-            is_correct = user_answer == correct_answer
-            
-            # 返回验证结果
-            return jsonify({
-                "is_correct": is_correct,
-                "correct_answer": correct_answer,
-                "user_answer": user_answer,
-                "message": "Correct!" if is_correct else "Incorrect. Try again."
-            })
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
-
 
 # 范围Quiz
 @app.route('/quiz/range', methods=['GET'])
@@ -207,6 +167,47 @@ def get_range_quiz():
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
+        
+# 提交答案并验证
+@app.route('/quiz/submit', methods=['POST'])
+def submit_quiz_answer():
+    try:
+        data = request.get_json()
+        word_id = data['id']
+        user_answer = data['answer'].strip().lower()  # 用户输入的答案
+        conn = get_db_connection()
+        
+        if not conn:
+            return jsonify({"error": "Database connection failed"}), 500
+        
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            # 查找正确答案
+            cur.execute('''
+                SELECT portuguese FROM words 
+                WHERE id = %s
+            ''', (word_id,))
+            
+            word = cur.fetchone()
+            
+            if not word:
+                return jsonify({"error": "Word not found"}), 404
+            
+            correct_answer = word['portuguese'].strip().lower()  # 正确答案
+            is_correct = user_answer == correct_answer
+            
+            # 返回验证结果
+            return jsonify({
+                "is_correct": is_correct,
+                "correct_answer": correct_answer,
+                "user_answer": user_answer,
+                "message": f"Correct! {word['english']} = {word['portuguese']}，example: {word['example']}" if is_correct else f"Incorrect! {word['english']} = {word['portuguese']}，example: {word['example']}"
+            })
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
 
 # 搜索功能
 @app.route('/search', methods=['GET'])
