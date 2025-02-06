@@ -108,6 +108,7 @@ def get_random_quiz():
             if total_words < count:
                 count = total_words
             
+            # 随机选取单词
             cur.execute('''
                 SELECT * FROM words 
                 ORDER BY RANDOM() 
@@ -115,16 +116,23 @@ def get_random_quiz():
             ''', (count,))
             
             words = cur.fetchall()
-            return jsonify([{
+            
+            # 提供问题（英语单词）和正确答案（葡萄牙语）
+            quiz_data = [{
                 'id': word['id'],
-                'english': word['english'],
-                'portuguese': word['portuguese'],
+                'question': word['english'],  # 提供英语单词
+                'correct_answer': word['portuguese'],  # 返回正确的葡萄牙语答案
                 'example': word['example'],
-            } for word in words])
+            } for word in words]
+            
+            # 返回测验数据
+            return jsonify(quiz_data)
+            
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
+
 
 # 范围Quiz
 @app.route('/quiz/range', methods=['GET'])
@@ -152,14 +160,14 @@ def get_range_quiz():
                     ORDER BY id
                 ''', (start_id,))
             
-            
-            words = cur.fetchall()
-            return jsonify([{
+            # 提供问题（英语单词）和正确答案（葡萄牙语）
+            quiz_data = [{
                 'id': word['id'],
-                'english': word['english'],
-                'portuguese': word['portuguese'],
+                'question': word['english'],  # 提供英语单词
+                'correct_answer': word['portuguese'],  # 返回正确的葡萄牙语答案
                 'example': word['example'],
-            } for word in words])
+            } for word in words]
+            
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
