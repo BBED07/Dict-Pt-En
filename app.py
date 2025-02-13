@@ -121,6 +121,7 @@ def get_random_quiz():
             quiz_data = [{
                 'id': word['id'],
                 'question': word['english'],  # 提供英语单词
+                'answer': word['portuguese']
             } for word in words]
             
             # 返回测验数据
@@ -161,6 +162,8 @@ def get_range_quiz():
             quiz_data = [{
                 'id': word['id'],
                 'question': word['english'],  # 提供英语单词
+                'answer': word['portuguese']
+
             } for word in words]
             
     except Exception as e:
